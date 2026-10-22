@@ -16,15 +16,17 @@ const int MAX_NODES = 4000;		// # of nodes to stop simulation
 const int MAX_ITERATIONS= 5;		// # of iteration stop simulation
 const int MAX_CONTOURS = LAST_CONTOUR - 1; // The last contour is named as "LAST_CONTOUR"
 const int CONTOUR_SIDES = 128;		// # of sides in a node contour
-const bool LINE_ONLY = false;		// line-only (true) or solid (false) for drawing
-const bool KEEP_HEAD = true;		// if true, the head direction stays the same regardless of growth direction
-const bool MODE_TRANSPARENT = true;	// transparent (true) or opaque (false) for colors
-const int MAX_COLORS = 255;		// color range = [1, MAX_COLORS]
-const int COLOR_CAP = 16;		// [0,16] to cap color from color map
+const bool PAINT_LINE = true;		// draw contour line for shapes
+const bool PAINT_SOLID = true;		// fill color as solid for shapes
+const bool PAINT_TRANSPARENT = true;	// transparent (true) or opaque (false) for colors
 const int LINE_WIDTH = 10;		// line width
-const bool DRAW_REFERENCE_BOX = true;	// draw the reference box
+const int LINE_COLOR = 255;		// line color. 0 for the same color as shape.
+const int MAX_COLORS = 255;		// color range = [1, MAX_COLORS]
+const int COLOR_CAP = 5;		// [0,16] to cap color from color map
+const bool DRAW_BOX = true;		// draw the reference box
 const float BOX_WIDTH = 4000.0;		// reference box width
 const float BOX_HEIGHT = 3000.0;	// reference box height
+const bool KEEP_HEAD_ANGLE = true;	// if true, the head angle stays the same during growth
 
 ////////////////////////////////////////////////
 // Macros
@@ -92,7 +94,7 @@ module GrowNode(NodeHandle);
 
 module Initialize();
 module DrawNode(NodeHandle);
-module DrawReferenceBox(float, float);
+module DrawBox(float, float);
 
 /* Other functions */
 void generateSeedsCoordinates(float, float, int, V2f*); // generate seeds coordinates
@@ -100,7 +102,6 @@ float gRandom(float);			// Gaussian dist random generator
 float uRandom(float, float);		// Uniform dist random within [min, max)
 V2f getContourCoord(int, float); 	// get coordinate from a contour
 V2f rotateVector(V2f&, float); 		// rotate a vector
-float distance(V2f&, V2f&);		// distance between two points
 
 /////////////////////////////////////////////////////////////
 // Global variables
@@ -110,24 +111,24 @@ float distance(V2f&, V2f&);		// distance between two points
 Gene genes[] = {
   // idContour, maxFanouts, prunRate, maxAngle, maxRotation, scaleRate, gapRate, color
   {  0,         4,          0.8,      170,      0,           0.8,       0.2,     0},
-  {  1,         3,          0.5,      170,      0,           0.8,       3.0,     0},
-  {  2,         3,          0.5,      170,      0,           0.7,       2.5,     0},
-  {  3,         3,          0.5,      170,      0,           0.7,       3.0,     0},
-  {  4,         3,          0.0,      90,       0,           0.7,       -0.5,    0},
-  {  5,         2,          0.5,      170,      0,           0.8,       2.5,     0},
-  {  6,         2,          0.5,      170,      0,           0.7,       2.5,     0},
-  {  7,         2,          0.5,      170,      0,           0.7,       2.0,     0},
+  {  1,         2,          0.5,      90,       0,           0.9,       2.5,     0},
+  {  2,         2,          0.9,      170,      0,           0.7,       2.5,     0},
+  {  3,         3,          0.75,     170,     45,           0.8,       0.0,     0},
+  {  4,         2,          0.8,      90,      30,           0.7,       -0.5,    0},
+  {  5,         2,          0.9,      170,      0,           0.7,       2.5,     0},
+  {  6,         2,          0.8,      90,      30,           0.7,       -0.5,    0},
+  {  7,         2,          0.5,      90,       0,           0.9,       2.5,     0},
 };
 
 Batch batches[] {
-	{0, 10, 500, 1000},
-	{1, 0, 1000, 1200},
-	{2, 0, 1000, 1200},
-	{3, 0, 1000, 1600},
-	{4, 0, 1000, 1600},
-	{5, 0, 800, 1000},
-	{6, 0, 1000, 1500},
-	{7, 0, 1000, 1300}
+	{0, 10, 300, 500},
+	{1, 5, 1000, 1200},
+	{2, 20, 200, 400},
+	{3, 3, 800, 2000},
+	{4, 4, 1000, 5000},
+	{5, 10, 400, 1000},
+	{6, 3, 1000, 5000},
+	{7, 5, 1000, 1300},
 };
 
 int currIteration;		// current iteration number of the simulation
@@ -172,7 +173,7 @@ EndEach:
 derivation length: 100000;
 
 Axiom: 	Initialize() // Initialize data structures before production
-	DrawReferenceBox(BOX_WIDTH, BOX_HEIGHT) // reference box
+	DrawBox(BOX_WIDTH, BOX_HEIGHT) // reference box
 	SetWidth(LINE_WIDTH)
 	Seeding();
 
@@ -222,14 +223,13 @@ Seeding() :
     pn->start = start;
 
     // set the direction the node
-    if (KEEP_HEAD) {  // no change in head direction - straight up front facing
+    if (KEEP_HEAD_ANGLE) {  // no change in head angle - straight up
       pn->direction.x = 0;
-      pn->direction.y = 0;
     }
     else {	// set it as if it grew out of its mother with the gene settings
       pn->direction.x = gRandom(pGene->maxAngle) - pGene->maxAngle;
-      pn->direction.y = uRandom(-pGene->maxRotation, pGene->maxRotation);
     }
+    pn->direction.y = uRandom(-pGene->maxRotation, pGene->maxRotation);
 
     pn->scale = scale;
     pn->color = pGene->color;
@@ -287,14 +287,13 @@ GrowNode(pNode) :
     pn->idGene = pThis->idGene;
 
     // set the direction and rotation of the node
-    if (KEEP_HEAD) {  // no change in head direction
+    if (KEEP_HEAD_ANGLE) {  // no change in head angle
       pn->direction.x = 0;
-      pn->direction.y = 0;
     }
     else {
       pn->direction.x = fanouts[i];	// head along the fanout angle
-      pn->direction.y = uRandom(-pGene->maxRotation, pGene->maxRotation);
     }
+    pn->direction.y = uRandom(-pGene->maxRotation, pGene->maxRotation);
 
     pn->scale = pThis->scale * gRandom(pGene->scaleRate);
     pn->color = pGene->color;
@@ -344,7 +343,7 @@ Initialize() :
 {
   // Use low-level OpenGL directly to set up blending mode
   // to simulate pigment mixing when in the transparent mode.
-  if (MODE_TRANSPARENT) {
+  if (PAINT_TRANSPARENT) {
     if (!glBlendEquation) {	// load glBlendEquation()
       glBlendEquation = (PFNGLBLENDEQUATIONPROC)wglGetProcAddress("glBlendEquation");
     }
@@ -425,8 +424,7 @@ DrawNode(pNode) :
 	   Left(90) g(pThis->start.y);
 
   // Set the direction and color
-  nproduce Left(pThis->direction.x) RollR(pThis->direction.y)
-	   SetColor(pThis->color);
+  nproduce Left(pThis->direction.x) RollR(pThis->direction.y);
 
   // Start the shape. Make sure the polygon to be enclosed in a block
   // so the turtle center location and direction remain unchanged.
@@ -437,14 +435,19 @@ DrawNode(pNode) :
   nproduce Right(90) g(start.x) Left(90) g(start.y);
 
   // Draw the shape
-  if (LINE_ONLY) {	// line only
+  if (PAINT_LINE) {	// draw the contour line
+    nproduce SB();
+    nproduce SetColor(LINE_COLOR == 0 ? pThis->color : LINE_COLOR);
     int nSides = DIM(contours[ci].edges);
     for (int i = 0; i < nSides; i++) {
       float l = contours[ci].edges[i].y * pThis->scale;
       nproduce Left(contours[ci].edges[i].x) F(l);
     }
+    nproduce EB();
   }
-  else {	// ploygon
+  if (PAINT_SOLID) {	// fill color inside the shape
+    nproduce SB();
+    nproduce SetColor(pThis->color);
     nproduce SP();
     int nSides = DIM(contours[ci].edges);
     for (int i = 0; i < nSides; i++) {
@@ -452,6 +455,7 @@ DrawNode(pNode) :
       nproduce Left(contours[ci].edges[i].x) f(l);
     }
     nproduce EP();
+    nproduce EB();
   }
 
   produce EB();
@@ -462,9 +466,9 @@ L(l) --> [&(90)@c] F(l) [&(90)@c]
 */
 
 /* Draw the reference box */
-DrawReferenceBox(w,h) : 
+DrawBox(w,h) : 
 {
-  if (DRAW_REFERENCE_BOX) {
+  if (DRAW_BOX) {
     nproduce SB()SetWidth(10)SetColor(15)
 		 MoveTo(w/2,0,0)F(h)Left(90)F(w)Left(90)F(h)Left(90)F(w)
 	     EB();
@@ -557,7 +561,7 @@ void generateSeedsCoordinates(float width, float height, int nSeeds, V2f* coords
           for (int rg = startRow; rg <= endRow; rg++) {
             int neighborIdx = grid[c + rg * cols];
             if (neighborIdx != -1) {
-              if (distance(candidate, coords[neighborIdx]) < r) {
+              if (hypot(candidate.x - coords[neighborIdx].x, candidate.y - coords[neighborIdx].y) < r) {
                 tooClose = true;
                 break;
               }
@@ -655,11 +659,4 @@ V2f rotateVector(V2f& vec, float degrees)
   rotated.y = vec.x * sinTheta + vec.y * cosTheta;
 
   return rotated;
-}
-
-/* Distance between two points
- */
-float distance(V2f& p1, V2f& p2)
-{
-  return sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y));
 }
