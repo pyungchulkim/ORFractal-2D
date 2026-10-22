@@ -10,7 +10,7 @@
 // Control parameters to run the simulation and render the results
 ////////////////////////////////////////////////////////////////////////
 
-const int SEED = 0;			// seed for random generator. 0 for no seed setting
+const int SEED = 85769;			// seed for random generator. 0 for no seed setting
 const float RANDOMNESS = 0.2;		// randomness control. 0.01 for almost no random, 0.5 for almost random
 const int MAX_NODES = 4000;		// # of nodes to stop simulation
 const int MAX_ITERATIONS= 5;		// # of iteration stop simulation
@@ -20,9 +20,9 @@ const bool PAINT_LINE = true;		// draw contour line for shapes
 const bool PAINT_SOLID = true;		// fill color as solid for shapes
 const bool PAINT_TRANSPARENT = true;	// transparent (true) or opaque (false) for colors
 const int LINE_WIDTH = 10;		// line width
-const int LINE_COLOR = 255;		// line color. 0 for the same color as shape.
-const int MAX_COLORS = 255;		// color range = [1, MAX_COLORS]
-const int COLOR_CAP = 5;		// [0,16] to cap color from color map
+const int LINE_COLOR = 255;		// line color. -1 for the same color as shape.
+const int MAX_COLORS = 256;		// color range = [0, MAX_COLORS)
+const bool USE_CUSTOM_PALETTE = true;	// use custome palette rather than L-studio colors
 const bool DRAW_BOX = true;		// draw the reference box
 const float BOX_WIDTH = 4000.0;		// reference box width
 const float BOX_HEIGHT = 3000.0;	// reference box height
@@ -36,7 +36,6 @@ const bool KEEP_HEAD_ANGLE = true;	// if true, the head angle stays the same dur
 #define ROUND(f)	((int)(f + 0.5f))		// simple round for positive float
 #define MIN(a, b) 	(((a) < (b)) ? (a) : (b))	// pick min
 #define MAX(a, b) 	(((a) > (b)) ? (a) : (b))	// pick max
-#define CAP_COLOR(c) 	while ((c) % 16 > COLOR_CAP) { (c) = (c) % (MAX_COLORS - 1) + 1; }
 
 /////////////////////////////////////////////////////////////
 // Forward declarations of types, functions and modules
@@ -52,7 +51,7 @@ typedef struct {
 	float scaleRate;	// rate of the size (scale) of the new node
 	float gapRate;		// rate of distance between the contours of the mother and new node.
 				// 0 for right next, 1 for one node apart, -0.5 for half overlapped, and so on.
-	int color;		// color. 0 for a random pick and automatic advance as it grows
+	int color;		// color. -1 for a random pick
 } Gene;
 
 /* Seeding batch */
@@ -110,20 +109,20 @@ V2f rotateVector(V2f&, float); 		// rotate a vector
 /* Genes and batches of seeds are being used in the simulation */
 Gene genes[] = {
   // idContour, maxFanouts, prunRate, maxAngle, maxRotation, scaleRate, gapRate, color
-  {  0,         4,          0.8,      170,      0,           0.8,       0.2,     0},
-  {  1,         2,          0.5,      90,       0,           0.9,       2.5,     0},
-  {  2,         2,          0.9,      170,      0,           0.7,       2.5,     0},
-  {  3,         3,          0.75,     170,     45,           0.8,       0.0,     0},
-  {  4,         2,          0.8,      90,      30,           0.7,       -0.5,    0},
-  {  5,         2,          0.9,      170,      0,           0.7,       2.5,     0},
-  {  6,         2,          0.8,      90,      30,           0.7,       -0.5,    0},
-  {  7,         2,          0.5,      90,       0,           0.9,       2.5,     0},
+  {  0,         3,          0.8,      170,      0,           0.8,       0.2,     -1},
+  {  1,         2,          0.7,      90,       0,           0.9,       2.5,     -1},
+  {  2,         2,          0.8,      170,      0,           0.7,       2.5,     -1},
+  {  3,         3,          0.75,     170,     45,           0.8,       0.0,     -1},
+  {  4,         2,          0.8,      90,      30,           0.7,       -0.5,    -1},
+  {  5,         2,          0.9,      170,      0,           0.7,       2.5,     -1},
+  {  6,         2,          0.8,      90,      30,           0.7,       -0.5,    -1},
+  {  7,         2,          0.5,      90,       0,           0.9,       2.5,     -1},
 };
 
 Batch batches[] {
 	{0, 10, 300, 500},
 	{1, 5, 1000, 1200},
-	{2, 20, 200, 400},
+	{2, 10, 200, 400},
 	{3, 3, 800, 2000},
 	{4, 4, 1000, 5000},
 	{5, 10, 400, 1000},
@@ -131,6 +130,13 @@ Batch batches[] {
 	{7, 5, 1000, 1300},
 };
 
+/* Custom palette for colors picked from L-Studio colors */
+int palette[] {
+     // 0, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240
+	0, 48+3, 80, 128, 160, 160+3, 208 
+};
+
+int currRandomSeed;		// current seed for random generators
 int currIteration;		// current iteration number of the simulation
 int nodesCreated;		// # of nodes created so far
 int nodesCreatedLast;		// # of nodes created until the last iteration
@@ -149,7 +155,14 @@ Start:
 {
   currIteration = 0;	// current iteration no.
   nodesCreated = 0;	// # of nodes created (not drawn)
-  if (SEED != 0) srand(SEED);	// set random seed
+  if (SEED != 0)
+    currRandomSeed = SEED;
+  else
+    currRandomSeed = (int)ran(100000);
+  sran(currRandomSeed);	// set random seed
+
+  // Output the current random seed in case I want to regenerate the exact drawing
+  Printf("Start simulation with random seed: %d.\n", currRandomSeed);
 }
 
 StartEach: 
@@ -233,9 +246,12 @@ Seeding() :
 
     pn->scale = scale;
     pn->color = pGene->color;
-    if (pn->color == 0)	// unspecified. random pick
-      pn->color = ran(MAX_COLORS) + 1;
-    CAP_COLOR(pn->color);
+    if (pn->color < 0)	{ // unspecified. random pick
+      if (USE_CUSTOM_PALETTE)
+	pn->color = palette[(int)ran(DIM(palette))] + 1;
+      else
+	pn->color = (int)ran(MAX_COLORS);
+    }
     pNode = pn;
 
     nproduce SB();
@@ -296,10 +312,7 @@ GrowNode(pNode) :
     pn->direction.y = uRandom(-pGene->maxRotation, pGene->maxRotation);
 
     pn->scale = pThis->scale * gRandom(pGene->scaleRate);
-    pn->color = pGene->color;
-    if (pn->color == 0)	// unspecified. advance to the next color
-      pn->color = (pThis->color == MAX_COLORS) ? 1 : pThis->color + 1;
-    CAP_COLOR(pn->color);
+    pn->color = pThis->color;
 
     // Calculate the center coordinate of the new node.
     // The gap is distance between v1 and v2 where v1 is a vertex of
@@ -535,7 +548,7 @@ void generateSeedsCoordinates(float width, float height, int nSeeds, V2f* coords
       activeCount = seedsCount;
     }
 
-    int activeIdx = rand() % activeCount;
+    int activeIdx = (int)ran(activeCount);
     int seedIdx = activeList[activeIdx];
     V2f activePoint = coords[seedIdx];
     bool found = false;
