@@ -10,7 +10,7 @@
 // Control parameters to run the simulation and render the results
 ////////////////////////////////////////////////////////////////////////
 
-const int SEED = 85769;			// seed for random generator. 0 for no seed setting
+const int SEED = 0;			// seed for random generator. 0 for no seed setting
 const float RANDOMNESS = 0.2;		// randomness control. 0.01 for almost no random, 0.5 for almost random
 const int MAX_NODES = 4000;		// # of nodes to stop simulation
 const int MAX_ITERATIONS= 5;		// # of iteration stop simulation
@@ -20,8 +20,8 @@ const bool PAINT_LINE = true;		// draw contour line for shapes
 const bool PAINT_SOLID = true;		// fill color as solid for shapes
 const bool PAINT_TRANSPARENT = true;	// transparent (true) or opaque (false) for colors
 const int LINE_WIDTH = 10;		// line width
-const int LINE_COLOR = 255;		// line color. -1 for the same color as shape.
-const int MAX_COLORS = 256;		// color range = [0, MAX_COLORS)
+const int LINE_COLOR = -1;		// line color. -1 for the same color as shape.
+const int MAX_COLORS = 255;		// color range = [1, MAX_COLORS]. 0 is reserved for background by L-studio
 const bool USE_CUSTOM_PALETTE = true;	// use custome palette rather than L-studio colors
 const bool DRAW_BOX = true;		// draw the reference box
 const float BOX_WIDTH = 4000.0;		// reference box width
@@ -124,16 +124,16 @@ Batch batches[] {
 	{1, 5, 1000, 1200},
 	{2, 10, 200, 400},
 	{3, 3, 800, 2000},
-	{4, 4, 1000, 5000},
+	{4, 6, 1000, 5000},
 	{5, 10, 400, 1000},
-	{6, 3, 1000, 5000},
-	{7, 5, 1000, 1300},
+	{6, 2, 1000, 5000},
+	{7, 3, 1000, 1300},
 };
 
 /* Custom palette for colors picked from L-Studio colors */
 int palette[] {
-     // 0, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240
-	0, 48+3, 80, 128, 160, 160+3, 208 
+     // 1, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240
+	1, 48+3, 80, 128, 160+3, 160+3, 208 
 };
 
 int currRandomSeed;		// current seed for random generators
@@ -247,10 +247,12 @@ Seeding() :
     pn->scale = scale;
     pn->color = pGene->color;
     if (pn->color < 0)	{ // unspecified. random pick
-      if (USE_CUSTOM_PALETTE)
-	pn->color = palette[(int)ran(DIM(palette))] + 1;
+      if (USE_CUSTOM_PALETTE) {
+	int delta = 1;
+	pn->color = palette[(int)ran(DIM(palette))] + delta;
+      }
       else
-	pn->color = (int)ran(MAX_COLORS);
+	pn->color = 1 + (int)ran(MAX_COLORS);
     }
     pNode = pn;
 
@@ -450,7 +452,7 @@ DrawNode(pNode) :
   // Draw the shape
   if (PAINT_LINE) {	// draw the contour line
     nproduce SB();
-    nproduce SetColor(LINE_COLOR == 0 ? pThis->color : LINE_COLOR);
+    nproduce SetColor(LINE_COLOR < 0 ? pThis->color : LINE_COLOR);
     int nSides = DIM(contours[ci].edges);
     for (int i = 0; i < nSides; i++) {
       float l = contours[ci].edges[i].y * pThis->scale;
