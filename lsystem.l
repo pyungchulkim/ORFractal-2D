@@ -5,28 +5,14 @@
 
 #include <lpfgall.h>
 #include <GL/gl.h>
+#include <ctime>
 
 ////////////////////////////////////////////////////////////////////////
-// Control parameters to run the simulation and render the results
+// Program-wide constants
 ////////////////////////////////////////////////////////////////////////
 
-const int SEED = 0;			// seed for random generator. 0 for no seed setting
-const float RANDOMNESS = 0.2;		// randomness control. 0.01 for almost no random, 0.5 for almost random
-const int MAX_NODES = 4000;		// # of nodes to stop simulation
-const int MAX_ITERATIONS= 5;		// # of iteration stop simulation
 const int MAX_CONTOURS = LAST_CONTOUR - 1; // The last contour is named as "LAST_CONTOUR"
 const int CONTOUR_SIDES = 128;		// # of sides in a node contour
-const bool PAINT_LINE = true;		// draw contour line for shapes
-const bool PAINT_SOLID = true;		// fill color as solid for shapes
-const bool PAINT_TRANSPARENT = true;	// transparent (true) or opaque (false) for colors
-const int LINE_WIDTH = 10;		// line width
-const int LINE_COLOR = -1;		// line color. -1 for the same color as shape.
-const int MAX_COLORS = 255;		// color range = [1, MAX_COLORS]. 0 is reserved for background by L-studio
-const bool USE_CUSTOM_PALETTE = true;	// use custome palette rather than L-studio colors
-const bool DRAW_BOX = true;		// draw the reference box
-const float BOX_WIDTH = 4000.0;		// reference box width
-const float BOX_HEIGHT = 3000.0;	// reference box height
-const bool KEEP_HEAD_ANGLE = true;	// if true, the head angle stays the same during growth
 
 ////////////////////////////////////////////////
 // Macros
@@ -102,6 +88,25 @@ float uRandom(float, float);		// Uniform dist random within [min, max)
 V2f getContourCoord(int, float); 	// get coordinate from a contour
 V2f rotateVector(V2f&, float); 		// rotate a vector
 
+////////////////////////////////////////////////////////////////////////
+// Control parameters to run the simulation and render the results
+////////////////////////////////////////////////////////////////////////
+const int SEED = 736634;			// seed for random generator. 0 for no seed setting
+const float RANDOMNESS = 0.2;		// randomness control. 0.01 for almost no random, 0.5 for almost random
+const int MAX_NODES = 1000;		// # of nodes to stop simulation
+const int MAX_ITERATIONS= 5;		// # of iteration stop simulation
+const bool PAINT_LINE = false;		// draw contour line for shapes
+const bool PAINT_SOLID = true;		// fill color as solid for shapes
+const bool PAINT_TRANSPARENT = true;	// transparent (true) or opaque (false) for colors
+const int LINE_WIDTH = 10;		// line width
+const int LINE_COLOR = 15;		// line color. -1 for the same color as shape.
+const int MAX_COLORS = 255;		// color range = [1, MAX_COLORS]. 0 is reserved for background by L-studio
+const bool USE_CUSTOM_PALETTE = true;	// use custome palette rather than L-studio colors
+const bool DRAW_BOX = true;		// draw the reference box
+const float BOX_WIDTH = 4000.0;		// reference box width
+const float BOX_HEIGHT = 3000.0;	// reference box height
+const bool KEEP_HEAD_ANGLE = true;	// if true, the head angle stays the same during growth
+
 /////////////////////////////////////////////////////////////
 // Global variables
 /////////////////////////////////////////////////////////////
@@ -109,31 +114,32 @@ V2f rotateVector(V2f&, float); 		// rotate a vector
 /* Genes and batches of seeds are being used in the simulation */
 Gene genes[] = {
   // idContour, maxFanouts, prunRate, maxAngle, maxRotation, scaleRate, gapRate, color
-  {  0,         3,          0.8,      170,      0,           0.8,       0.2,     -1},
-  {  1,         2,          0.7,      90,       0,           0.9,       2.5,     -1},
-  {  2,         2,          0.8,      170,      0,           0.7,       2.5,     -1},
-  {  3,         3,          0.75,     170,     45,           0.8,       0.0,     -1},
-  {  4,         2,          0.8,      90,      30,           0.7,       -0.5,    -1},
-  {  5,         2,          0.9,      170,      0,           0.7,       2.5,     -1},
-  {  6,         2,          0.8,      90,      30,           0.7,       -0.5,    -1},
-  {  7,         2,          0.5,      90,       0,           0.9,       2.5,     -1},
+  {  0,         4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  {  1,         4,          0.4,      170,       0,           0.7,       1.0,     -1},
+  {  2,         4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  {  3,         4,          0.4,      170,     0,           0.7,       1.0,     -1},
+  {  4,         4,          0.4,      170,      0,           0.5,       1.0,    -1},
+  {  5,         4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  {  6,         4,          0.4,      170,      0,           0.7,       1.0,    -1},
+  {  7,         4,          0.4,      170,       0,           0.7,       1.0,     -1},
 };
 
 Batch batches[] {
-	{0, 10, 300, 500},
-	{1, 5, 1000, 1200},
-	{2, 10, 200, 400},
-	{3, 3, 800, 2000},
-	{4, 6, 1000, 5000},
-	{5, 10, 400, 1000},
-	{6, 2, 1000, 5000},
-	{7, 3, 1000, 1300},
+	{0, 5, 600, 800},
+	{1, 5, 700, 1000},
+	{2, 5, 500, 700},
+	{3, 5, 1000, 1400},
+	{4, 5, 1000, 1400},
+	{5, 5, 600, 800},
+	{6, 5, 800, 1400},
+	{7, 5, 800, 1000},
 };
 
 /* Custom palette for colors picked from L-Studio colors */
 int palette[] {
-     // 1, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240
-	1, 48+3, 80, 128, 160+3, 160+3, 208 
+     1, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240
+     //160, 161, 162, 164, 166, 168, 170, 172
+     //48
 };
 
 int currRandomSeed;		// current seed for random generators
@@ -158,7 +164,7 @@ Start:
   if (SEED != 0)
     currRandomSeed = SEED;
   else
-    currRandomSeed = (int)ran(100000);
+    currRandomSeed = (int)std::time(NULL) % 1000000;
   sran(currRandomSeed);	// set random seed
 
   // Output the current random seed in case I want to regenerate the exact drawing
@@ -204,10 +210,6 @@ Seeding() :
     for (int j = 0; j < batches[i].nSeeds; j++)
       flatBatches[c++] = batches[i];
 
-  // Randomize
-  for (int i = nTotalSeeds - 1; i > 0; i--)
-    std::swap(flatBatches[i], flatBatches[(int)ran(i + 1)]);
-
   // Generate seeds coordinates
   V2f *coords = new V2f[nTotalSeeds];
   generateSeedsCoordinates(BOX_WIDTH, BOX_HEIGHT, nTotalSeeds, coords);
@@ -248,7 +250,7 @@ Seeding() :
     pn->color = pGene->color;
     if (pn->color < 0)	{ // unspecified. random pick
       if (USE_CUSTOM_PALETTE) {
-	int delta = 1;
+	int delta = 2;
 	pn->color = palette[(int)ran(DIM(palette))] + delta;
       }
       else
