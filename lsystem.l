@@ -29,7 +29,7 @@ const int CONTOUR_SIDES = 128;		// # of sides in a node contour
 
 /* Gene for a node - dictates how it grows */
 typedef struct {		
-	int idContour;		// ID for the base contour
+	int idContour;		// ID for the base contour. [1, LAST_CONTOUR-1]
 	int maxFanouts;		// max fanouts when no prunning happens.
 	float prunRate;		// pruning rate. 0 for no-pruning
 	float maxAngle;		// branches are distributed within [-p3, p3] degree from the top.
@@ -113,15 +113,15 @@ const bool KEEP_HEAD_ANGLE = true;	// if true, the head angle stays the same dur
 
 /* Genes and batches of seeds are being used in the simulation */
 Gene genes[] = {
-  // idContour, maxFanouts, prunRate, maxAngle, maxRotation, scaleRate, gapRate, color
-  {  0,         4,          0.4,      170,      0,           0.7,       1.0,     -1},
-  {  1,         4,          0.4,      170,       0,           0.7,       1.0,     -1},
-  {  2,         4,          0.4,      170,      0,           0.7,       1.0,     -1},
-  {  3,         4,          0.4,      170,     0,           0.7,       1.0,     -1},
-  {  4,         4,          0.4,      170,      0,           0.5,       1.0,    -1},
-  {  5,         4,          0.4,      170,      0,           0.7,       1.0,     -1},
-  {  6,         4,          0.4,      170,      0,           0.7,       1.0,    -1},
-  {  7,         4,          0.4,      170,       0,           0.7,       1.0,     -1},
+  //	    idContour, 		maxFanouts, prunRate, maxAngle, maxRotation, scaleRate, gapRate, color
+  /* 0 */ { contour_glass0,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 1 */ { contour_glass1,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 2 */ { contour_glass2,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 3 */ { contour_glass3,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 4 */ { contour_glass4,     4,          0.4,      170,      0,           0.5,       1.0,     -1},
+  /* 5 */ { contour_glass5,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 6 */ { contour_glass6,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 7 */ { contour_glass7,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
 };
 
 Batch batches[] {
@@ -434,7 +434,7 @@ Initialize() :
 DrawNode(pNode) : 
 {
   Node2D *pThis = (Node2D *)pNode;
-  int ci = genes[pThis->idGene].idContour;
+  int ci = genes[pThis->idGene].idContour - 1;
 
   // Make a directional relative move to the new center position.
   nproduce Right(90) g(pThis->start.x)
