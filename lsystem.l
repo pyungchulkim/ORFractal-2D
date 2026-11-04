@@ -91,7 +91,7 @@ V2f rotateVector(V2f&, float); 		// rotate a vector
 ////////////////////////////////////////////////////////////////////////
 // Control parameters to run the simulation and render the results
 ////////////////////////////////////////////////////////////////////////
-const int SEED = 736634;			// seed for random generator. 0 for no seed setting
+const int SEED = 0;			// seed for random generator. 0 for no seed setting
 const float RANDOMNESS = 0.2;		// randomness control. 0.01 for almost no random, 0.5 for almost random
 const int MAX_NODES = 1000;		// # of nodes to stop simulation
 const int MAX_ITERATIONS= 5;		// # of iteration stop simulation
