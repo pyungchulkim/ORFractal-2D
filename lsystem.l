@@ -1,11 +1,36 @@
-/* Ordered Random Fractal 2D (ORFractal-2D) - see description.txt for details.
- * by Pyungchul Kim, 2026
- * https://orderedrandom.com
- */
+/**************************************************************************************
+Ordered Random Fractal 2D (ORFractal-2D) Overview
+
+This is an experimental art project designed to generate ordered randomness 
+from arbitrary 2D shapes. Using fractal growth algorithms, I create self-similar forms 
+that dynamically vary in scale and randomness. The core visual experience I aim to 
+deliver is a sense of texture and rhythm crafted by nature over time - a visual 
+manifestation of the principle of causality.
+
+The project utilizes LPFG, an L-system fractal and simulation software developed at 
+the University of Calgary. While I use 2D contours as source shapes, the canvas 
+itself is a 3D drawing space, allowing for perspective views and complex layered 
+geometries. This space is mapped as <x, y, z>, where the x-axis spans from left (-width/2) 
+to right (width/2), the y-axis grows from bottom (0) to top (height), and the z-axis 
+stretches from far back (-depth) to the foreground (0).
+
+Within the program, each individual shape is denoted as a 'node.' Initial seeds are 
+distributed inside a reference bounding box using a Poisson disk sampling algorithm, 
+ensuring they are spread randomly without overlapping, mimicking natural spacing. 
+I implement a genetic framework to dictate how these nodes evolve over time; a 'gene' 
+is defined as a tuple containing the source contour paired with structural rules for 
+fanout, pruning, rotation, and scaling. These source contours are designed within 
+the 'contour' tab of L-studio, and their point vectors are used to scale and 
+construct the nodes. By configuring distinct seed batches, I can control 
+the number of initial nodes and the genetic behaviors governing their growth.
+
+by Pyungchul Kim, 2026
+https://orderedrandom.com
+**************************************************************************************/
 
 #include <lpfgall.h>
 #include <GL/gl.h>
-#include <ctime>
+#include <sys/timeb.h>
 
 ////////////////////////////////////////////////////////////////////////
 // Program-wide constants
@@ -92,20 +117,22 @@ V2f rotateVector(V2f&, float); 		// rotate a vector
 // Control parameters to run the simulation and render the results
 ////////////////////////////////////////////////////////////////////////
 const int SEED = 0;			// seed for random generator. 0 for no seed setting
-const float RANDOMNESS = 0.2;		// randomness control. 0.01 for almost no random, 0.5 for almost random
-const int MAX_NODES = 1000;		// # of nodes to stop simulation
-const int MAX_ITERATIONS= 5;		// # of iteration stop simulation
+const float RANDOMNESS = 0.4;		// randomness control. 0.01 for almost no random, 0.5 for almost random
+const int MAX_NODES = 10000;		// # of nodes to stop simulation
+const int MAX_ITERATIONS= 2;		// # of iteration stop simulation
 const bool PAINT_LINE = false;		// draw contour line for shapes
 const bool PAINT_SOLID = true;		// fill color as solid for shapes
-const bool PAINT_TRANSPARENT = true;	// transparent (true) or opaque (false) for colors
+const bool PAINT_TRANSPARENT = false;	// transparent (true) or opaque (false) for colors
 const int LINE_WIDTH = 10;		// line width
 const int LINE_COLOR = 15;		// line color. -1 for the same color as shape.
 const int MAX_COLORS = 255;		// color range = [1, MAX_COLORS]. 0 is reserved for background by L-studio
-const bool USE_CUSTOM_PALETTE = true;	// use custome palette rather than L-studio colors
+const bool USE_CUSTOM_PALETTE = false;	// use custome palette rather than L-studio colors
 const bool DRAW_BOX = true;		// draw the reference box
 const float BOX_WIDTH = 4000.0;		// reference box width
 const float BOX_HEIGHT = 3000.0;	// reference box height
-const bool KEEP_HEAD_ANGLE = true;	// if true, the head angle stays the same during growth
+const bool KEEP_HEAD_ANGLE = false;	// if true, the head angle stays the same during growth
+const bool PERSPECTIVE_VIEW = true;	// if true, nodes are placed at depth z = height y 
+					// (slanting backward) so it can help perspective view
 
 /////////////////////////////////////////////////////////////
 // Global variables
@@ -114,25 +141,25 @@ const bool KEEP_HEAD_ANGLE = true;	// if true, the head angle stays the same dur
 /* Genes and batches of seeds are being used in the simulation */
 Gene genes[] = {
   //	    idContour, 		maxFanouts, prunRate, maxAngle, maxRotation, scaleRate, gapRate, color
-  /* 0 */ { contour_glass0,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
-  /* 1 */ { contour_glass1,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
-  /* 2 */ { contour_glass2,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
-  /* 3 */ { contour_glass3,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
-  /* 4 */ { contour_glass4,     4,          0.4,      170,      0,           0.5,       1.0,     -1},
-  /* 5 */ { contour_glass5,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
-  /* 6 */ { contour_glass6,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
-  /* 7 */ { contour_glass7,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 0 */ { contour_glass1,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 1 */ { contour_glass2,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 2 */ { contour_glass3,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 3 */ { contour_glass4,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 4 */ { contour_glass5,     4,          0.4,      170,      0,           0.5,       1.0,     -1},
+  /* 5 */ { contour_glass6,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 6 */ { contour_glass7,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 7 */ { contour_glass8,     4,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 8 */ { contour_rock1,      0,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 9 */ { contour_rock2,      0,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 10*/ { contour_rock3,      0,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 11*/ { contour_rock4,      0,          0.4,      170,      0,           0.7,       1.0,     -1},
 };
 
 Batch batches[] {
-	{0, 5, 600, 800},
-	{1, 5, 700, 1000},
-	{2, 5, 500, 700},
-	{3, 5, 1000, 1400},
-	{4, 5, 1000, 1400},
-	{5, 5, 600, 800},
-	{6, 5, 800, 1400},
-	{7, 5, 800, 1000},
+	{8,  600, 100, 400},
+	{9,  300, 100, 400},
+	{10, 300, 100, 400},
+	{11, 300, 100, 400}
 };
 
 /* Custom palette for colors picked from L-Studio colors */
@@ -163,9 +190,15 @@ Start:
   nodesCreated = 0;	// # of nodes created (not drawn)
   if (SEED != 0)
     currRandomSeed = SEED;
-  else
-    currRandomSeed = (int)std::time(NULL) % 1000000;
-  sran(currRandomSeed);	// set random seed
+  else {
+    // The seed is not specified. I generate the seed using the current time in milliseconds
+    // and display it on screen so it can be re-used in case I need to generate the
+    // exact same drawing (growth) later.
+    struct _timeb timebuffer;
+    _ftime(&timebuffer);
+    currRandomSeed = (timebuffer.time * 1000) + timebuffer.millitm;
+  }
+  sran(currRandomSeed);	ran(1); // set random seed and depart from its initial seed location
 
   // Output the current random seed in case I want to regenerate the exact drawing
   Printf("Start simulation with random seed: %d.\n", currRandomSeed);
@@ -204,7 +237,7 @@ Seeding() :
   for (int i = 0; i < DIM(batches); i++)
     nTotalSeeds += batches[i].nSeeds;
 
-  // Flatten to randomize
+  // Flatten to iterate
   Batch *flatBatches = new Batch[nTotalSeeds];
   for (int i = 0, c = 0; i < DIM(batches); i++)
     for (int j = 0; j < batches[i].nSeeds; j++)
@@ -250,7 +283,7 @@ Seeding() :
     pn->color = pGene->color;
     if (pn->color < 0)	{ // unspecified. random pick
       if (USE_CUSTOM_PALETTE) {
-	int delta = 2;
+	int delta = 4;
 	pn->color = palette[(int)ran(DIM(palette))] + delta;
       }
       else
@@ -430,6 +463,15 @@ Initialize() :
   produce EB();
 }
 
+/* Get the coordinate of the contour at the given angle */
+V2f getContourCoord(int idContour, float angle)
+{
+  int ci = idContour - 1;
+  int ai = fmod(angle + 360.0, 360.0);  // map it to [0, 360)
+  int vi = contours[ci].angleToVertices[ai];
+  return contours[ci].vertices[vi];
+}
+
 /* Draw the node with the direction and shape information. */
 DrawNode(pNode) : 
 {
@@ -439,6 +481,8 @@ DrawNode(pNode) :
   // Make a directional relative move to the new center position.
   nproduce Right(90) g(pThis->start.x)
 	   Left(90) g(pThis->start.y);
+  if (PERSPECTIVE_VIEW) // place it slanted backward for perspective view
+    nproduce Down(90) g(pThis->start.y) Up(90);
 
   // Set the direction and color
   nproduce Left(pThis->direction.x) RollR(pThis->direction.y);
@@ -477,10 +521,6 @@ DrawNode(pNode) :
 
   produce EB();
 }
-
-/* circular rod (cylinder) *
-L(l) --> [&(90)@c] F(l) [&(90)@c]
-*/
 
 /* Draw the reference box */
 DrawBox(w,h) : 
@@ -611,6 +651,10 @@ void generateSeedsCoordinates(float width, float height, int nSeeds, V2f* coords
   // Shift X coordinate so they are [-width/2, width/2]
   for (int i = 0; i < nSeeds; i++) coords[i].x -= width / 2;
 
+  // Randomize
+  for (int i = nSeeds - 1; i > 0; i--)
+    std::swap(coords[i], coords[(int)ran(i + 1)]);
+
   delete[] grid;
   delete[] activeList;
 }
@@ -650,15 +694,6 @@ float gRandom(float mean)
 float uRandom(float min, float max)
 {
   return min + ran(max - min);
-}
-
-/* Get the coordinate of the contour at the given angle.
- */
-V2f getContourCoord(int idContour, float angle)
-{
-  int ai = fmod(angle + 360.0, 360.0);  // map it to [0, 360)
-  int vi = contours[idContour].angleToVertices[ai];
-  return contours[idContour].vertices[vi];
 }
 
 /* Rotate a vector counterclockwise

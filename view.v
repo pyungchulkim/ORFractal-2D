@@ -7,7 +7,7 @@ corrected rotation: on
 concave polygons: on
 
 /* z buffer needs to off in transparent mode to see color mixing */
-z buffer: off
+z buffer: on
 
 /* For some reason, the contour sides get trimmed at higher number
  * when line style is pixel or polygon. Maybe, contour info gets fully
@@ -19,4 +19,4 @@ render mode: shaded
 /* viewing control
  * projection: parallel or perspective
  */
-projection: parallel
+projection: perspective
