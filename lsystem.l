@@ -44,7 +44,7 @@ const int CONTOUR_SIDES = 128;		// # of sides in a node contour
 ////////////////////////////////////////////////
 
 #define DIM(ary)	(sizeof(ary) / sizeof(ary[0]))	// dimension of an array
-#define ROUND(f)	((int)(f + 0.5f))		// simple round for positive float
+#define ROUND(f)	((int)(f + 0.5))		// simple round for positive float
 #define MIN(a, b) 	(((a) < (b)) ? (a) : (b))	// pick min
 #define MAX(a, b) 	(((a) > (b)) ? (a) : (b))	// pick max
 
@@ -118,15 +118,15 @@ V2f rotateVector(V2f&, float); 		// rotate a vector
 ////////////////////////////////////////////////////////////////////////
 const int SEED = 0;			// seed for random generator. 0 for no seed setting
 const float RANDOMNESS = 0.4;		// randomness control. 0.01 for almost no random, 0.5 for almost random
-const int MAX_NODES = 10000;		// # of nodes to stop simulation
-const int MAX_ITERATIONS= 2;		// # of iteration stop simulation
-const bool PAINT_LINE = false;		// draw contour line for shapes
+const int MAX_NODES = 1000;		// # of nodes to stop simulation
+const int MAX_ITERATIONS= 20;		// # of iteration stop simulation
+const bool PAINT_LINE = true;		// draw contour line for shapes
 const bool PAINT_SOLID = true;		// fill color as solid for shapes
 const bool PAINT_TRANSPARENT = false;	// transparent (true) or opaque (false) for colors
-const int LINE_WIDTH = 10;		// line width
+const int LINE_WIDTH = 5;		// line width
 const int LINE_COLOR = 15;		// line color. -1 for the same color as shape.
 const int MAX_COLORS = 255;		// color range = [1, MAX_COLORS]. 0 is reserved for background by L-studio
-const bool USE_CUSTOM_PALETTE = false;	// use custome palette rather than L-studio colors
+const bool USE_CUSTOM_PALETTE = true;	// use custome palette rather than L-studio colors
 const bool DRAW_BOX = true;		// draw the reference box
 const float BOX_WIDTH = 4000.0;		// reference box width
 const float BOX_HEIGHT = 3000.0;	// reference box height
@@ -153,20 +153,22 @@ Gene genes[] = {
   /* 9 */ { contour_rock2,      0,          0.4,      170,      0,           0.7,       1.0,     -1},
   /* 10*/ { contour_rock3,      0,          0.4,      170,      0,           0.7,       1.0,     -1},
   /* 11*/ { contour_rock4,      0,          0.4,      170,      0,           0.7,       1.0,     -1},
+  /* 12*/ { contour_rock5,      0,          0.4,      170,      0,           0.7,       1.0,     -1},
 };
 
 Batch batches[] {
-	{8,  600, 100, 400},
-	{9,  300, 100, 400},
-	{10, 300, 100, 400},
-	{11, 300, 100, 400}
+	{8,  300, 100, 500},
+	{9,  150, 100, 500},
+	{10, 150, 100, 500},
+	{11, 150, 100, 500},
+	{12, 150, 100, 500},
 };
 
 /* Custom palette for colors picked from L-Studio colors */
 int palette[] {
-     1, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240
+     //1, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240
      //160, 161, 162, 164, 166, 168, 170, 172
-     //48
+     48
 };
 
 int currRandomSeed;		// current seed for random generators
@@ -283,7 +285,7 @@ Seeding() :
     pn->color = pGene->color;
     if (pn->color < 0)	{ // unspecified. random pick
       if (USE_CUSTOM_PALETTE) {
-	int delta = 4;
+	int delta = 0;
 	pn->color = palette[(int)ran(DIM(palette))] + delta;
       }
       else
@@ -482,7 +484,7 @@ DrawNode(pNode) :
   nproduce Right(90) g(pThis->start.x)
 	   Left(90) g(pThis->start.y);
   if (PERSPECTIVE_VIEW) // place it slanted backward for perspective view
-    nproduce Down(90) g(pThis->start.y) Up(90);
+    nproduce Down(90) g(pThis->start.y * 4.0) Up(90);
 
   // Set the direction and color
   nproduce Left(pThis->direction.x) RollR(pThis->direction.y);
